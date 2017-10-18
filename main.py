@@ -5,6 +5,20 @@ import warnings
 from distutils.version import LooseVersion
 import project_tests as tests
 
+# Parameters
+# Tune these parameters
+EPOCHS = 20
+BATCH_SIZE = 3
+
+LEARNING_RATE = 0.0001
+DROPOUT = 0.75
+
+# Placeholders
+#  4D = [batch, img_h, img_w, num_classes]
+correct_label = tf.placeholder(tf.float32, [None, 160, 576, 2])
+keep_prob = tf.placeholder(tf.float32)
+learning_rate = tf.placeholder(tf.float32)
+
 
 # Check TensorFlow Version
 assert LooseVersion(tf.__version__) >= LooseVersion('1.0'), 'Please use TensorFlow version 1.0 or newer.  You are using {}'.format(tf.__version__)
@@ -97,7 +111,18 @@ def optimize(nn_last_layer, correct_label, learning_rate, num_classes):
     :return: Tuple of (logits, train_op, cross_entropy_loss)
     """
     # TODO: Implement function
-    return None, None, None
+    # Convert 4D input to 2D. Row - pixel, column - class
+    logits = tf.reshape(nn_last_layer, (-1, num_classes))
+    gt_labels = tf.reshape(correct_label, (-1, num_classes))
+
+    # Loss in softmax
+    cross_entropy = tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=gt_labels)
+    cross_entropy_loss = tf.reduce_mean(cross_entropy)
+
+    # AdamOpt train operator
+    train_op = tf.train.AdamOptimizer(learning_rate).minimize(cross_entropy_loss)
+
+    return logits, train_op, cross_entropy_loss
 tests.test_optimize(optimize)
 
 
@@ -117,7 +142,25 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op, cross_entropy_l
     :param learning_rate: TF Placeholder for learning rate
     """
     # TODO: Implement function
-    pass
+    for epoch in range(EPOCHS):
+        losses = []
+        i = 0
+        
+        for images, labels in get_batches_fn(BATCH_SIZE):
+            i += 1
+            feed = { input_image: images,
+                     correct_label: labels,
+                     keep_prob: DROPOUT,
+                     learning_rate: LEARNING_RATE }
+            _, loss = sess.run([train_op, cross_entropy_loss], feed_dict = feed)
+            print("iteration: ", i, " current loss:", loss)
+            losses.append(loss)
+              
+        training_loss = sum(losses) / len(losses)
+        #training_losses.append(training_loss)
+        
+        print("epoch: ", epoch + 1, " of ", EPOCHS, "training loss: ", training_loss)
+    
 tests.test_train_nn(train_nn)
 
 
@@ -145,11 +188,23 @@ def run():
         #  https://datascience.stackexchange.com/questions/5224/how-to-prepare-augment-images-for-neural-network
 
         # TODO: Build NN using load_vgg, layers, and optimize function
+        image_input, keep_prob, layer3_out, layer4_out, layer7_out = load_vgg(sess, vgg_path)
+        fcn_out = layers(layer3_out, layer4_out, layer7_out, num_classes=2)
+        logits, train_op, cross_entropy_loss = optimize(fcn_out, correct_label, learning_rate, num_classes)
 
         # TODO: Train NN using the train_nn function
 
+        # Initialize all variables
+        sess.run(tf.global_variables_initializer())
+        sess.run(tf.local_variables_initializer())
+
+        # Train the neural network
+        train_nn(sess, EPOCHS, BATCH_SIZE, get_batches_fn, 
+             train_op, cross_entropy_loss, image_input,
+             correct_label, keep_prob, learning_rate)
+
         # TODO: Save inference data using helper.save_inference_samples
-        #  helper.save_inference_samples(runs_dir, data_dir, sess, image_shape, logits, keep_prob, input_image)
+        helper.save_inference_samples(runs_dir, data_dir, sess, image_shape, logits, keep_prob, image_input)
 
         # OPTIONAL: Apply the trained model to a video
 
