@@ -7,11 +7,11 @@ import project_tests as tests
 
 # Parameters
 # Tune these parameters
-EPOCHS = 20
-BATCH_SIZE = 3
+EPOCHS = 30
+BATCH_SIZE = 1
 
 LEARNING_RATE = 0.0001
-DROPOUT = 0.75
+DROPOUT = 0.50
 
 # Placeholders
 #  4D = [batch, img_h, img_w, num_classes]
